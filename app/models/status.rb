@@ -261,8 +261,8 @@ class Status < ApplicationRecord
 
   def schedule_removal
     moon = Lunartic.today
-    removal_delay = (moon.percent_full * 220 + 20)
-    RemovalWorker.perform_in(removal_delay.minutes, id)
+    removal_delay = (moon.percent_full * 168 + 168)
+    RemovalWorker.perform_in(removal_delay.hours, id)
   end
 
   after_create :schedule_removal
