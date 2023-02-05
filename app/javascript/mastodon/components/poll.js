@@ -12,8 +12,18 @@ import RelativeTimestamp from './relative_timestamp';
 import Icon from 'mastodon/components/icon';
 
 const messages = defineMessages({
-  closed: { id: 'poll.closed', defaultMessage: 'Closed' },
-  voted: { id: 'poll.voted', defaultMessage: 'You voted for this answer', description: 'Tooltip of the "voted" checkmark in polls' },
+  closed: {
+    id: 'poll.closed',
+    defaultMessage: 'Closed',
+  },
+  voted: {
+    id: 'poll.voted',
+    defaultMessage: 'You voted for this answer',
+  },
+  votes: {
+    id: 'poll.votes',
+    defaultMessage: '{votes, plural, one {# vote} other {# votes}}',
+  },
 });
 
 const makeEmojiMap = record => record.get('emojis').reduce((obj, emoji) => {
@@ -23,6 +33,10 @@ const makeEmojiMap = record => record.get('emojis').reduce((obj, emoji) => {
 
 export default @injectIntl
 class Poll extends ImmutablePureComponent {
+
+  static contextTypes = {
+    identity: PropTypes.object,
+  };
 
   static propTypes = {
     poll: ImmutablePropTypes.map,
@@ -81,7 +95,7 @@ class Poll extends ImmutablePureComponent {
       tmp[value] = true;
       this.setState({ selected: tmp });
     }
-  }
+  };
 
   handleOptionChange = ({ target: { value } }) => {
     this._toggleOption(value);
@@ -93,7 +107,7 @@ class Poll extends ImmutablePureComponent {
       e.stopPropagation();
       e.preventDefault();
     }
-  }
+  };
 
   handleVote = () => {
     if (this.props.disabled) {
@@ -148,12 +162,19 @@ class Poll extends ImmutablePureComponent {
               data-index={optionIndex}
             />
           )}
-          {showResults && <span className='poll__number'>
-            {Math.round(percent)}%
-          </span>}
+          {showResults && (
+            <span
+              className='poll__number'
+              title={intl.formatMessage(messages.votes, {
+                votes: option.get('votes_count'),
+              })}
+            >
+              {Math.round(percent)}%
+            </span>
+          )}
 
           <span
-            className='poll__option__text'
+            className='poll__option__text translate'
             dangerouslySetInnerHTML={{ __html: titleEmojified }}
           />
 
@@ -200,7 +221,7 @@ class Poll extends ImmutablePureComponent {
         </ul>
 
         <div className='poll__footer'>
-          {!showResults && <button className='button button-secondary' disabled={disabled} onClick={this.handleVote}><FormattedMessage id='poll.vote' defaultMessage='Vote' /></button>}
+          {!showResults && <button className='button button-secondary' disabled={disabled || !this.context.identity.signedIn} onClick={this.handleVote}><FormattedMessage id='poll.vote' defaultMessage='Vote' /></button>}
           {showResults && !this.props.disabled && <span><button className='poll__link' onClick={this.handleRefresh}><FormattedMessage id='poll.refresh' defaultMessage='Refresh' /></button> · </span>}
           {votesCount}
           {poll.get('expires_at') && <span> · {timeRemaining}</span>}

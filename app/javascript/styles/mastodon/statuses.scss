@@ -80,12 +80,17 @@
 .button.logo-button {
   flex: 0 auto;
   font-size: 14px;
-  background: $ui-highlight-color;
+  background: darken($ui-highlight-color, 2%);
   color: $primary-text-color;
   text-transform: none;
-  line-height: 36px;
+  line-height: 1.2;
   height: auto;
-  padding: 3px 15px;
+  min-height: 36px;
+  min-width: 88px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  padding: 0 15px;
   border: 0;
 
   svg {
@@ -99,7 +104,7 @@
   &:active,
   &:focus,
   &:hover {
-    background: lighten($ui-highlight-color, 10%);
+    background: $ui-highlight-color;
   }
 
   &:disabled,
@@ -126,9 +131,14 @@
   }
 }
 
-.embed,
-.public-layout {
-  .status__content[data-spoiler=folded] {
+a.button.logo-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.embed {
+  .status__content[data-spoiler="folded"] {
     .e-content {
       display: none;
     }

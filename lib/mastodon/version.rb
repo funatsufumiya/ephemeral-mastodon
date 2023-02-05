@@ -5,11 +5,11 @@ module Mastodon
     module_function
 
     def major
-      3
+      4
     end
 
     def minor
-      2
+      1
     end
 
     def patch
@@ -17,7 +17,7 @@ module Mastodon
     end
 
     def flags
-      ''
+      'rc3'
     end
 
     def suffix
@@ -33,7 +33,7 @@ module Mastodon
     end
 
     def repository
-      ENV.fetch('GITHUB_REPOSITORY') { 'nightpool/ephemeral.glitch.social' }
+      ENV.fetch('GITHUB_REPOSITORY', 'funatsufumiya/ephemeral-mastodon')
     end
 
     def source_base_url

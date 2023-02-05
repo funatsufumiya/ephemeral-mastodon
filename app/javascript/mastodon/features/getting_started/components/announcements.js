@@ -35,39 +35,14 @@ class Content extends ImmutablePureComponent {
 
   setRef = c => {
     this.node = c;
-  }
+  };
 
   componentDidMount () {
     this._updateLinks();
-    this._updateEmojis();
   }
 
   componentDidUpdate () {
     this._updateLinks();
-    this._updateEmojis();
-  }
-
-  _updateEmojis () {
-    const node = this.node;
-
-    if (!node || autoPlayGif) {
-      return;
-    }
-
-    const emojis = node.querySelectorAll('.custom-emoji');
-
-    for (var i = 0; i < emojis.length; i++) {
-      let emoji = emojis[i];
-
-      if (emoji.classList.contains('status-emoji')) {
-        continue;
-      }
-
-      emoji.classList.add('status-emoji');
-
-      emoji.addEventListener('mouseenter', this.handleEmojiMouseEnter, false);
-      emoji.addEventListener('mouseleave', this.handleEmojiMouseLeave, false);
-    }
   }
 
   _updateLinks () {
@@ -112,42 +87,62 @@ class Content extends ImmutablePureComponent {
   onMentionClick = (mention, e) => {
     if (this.context.router && e.button === 0 && !(e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      this.context.router.history.push(`/accounts/${mention.get('id')}`);
+      this.context.router.history.push(`/@${mention.get('acct')}`);
     }
-  }
+  };
 
   onHashtagClick = (hashtag, e) => {
     hashtag = hashtag.replace(/^#/, '');
 
     if (this.context.router && e.button === 0 && !(e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      this.context.router.history.push(`/timelines/tag/${hashtag}`);
+      this.context.router.history.push(`/tags/${hashtag}`);
     }
-  }
+  };
 
   onStatusClick = (status, e) => {
     if (this.context.router && e.button === 0 && !(e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      this.context.router.history.push(`/statuses/${status.get('id')}`);
+      this.context.router.history.push(`/@${status.getIn(['account', 'acct'])}/${status.get('id')}`);
     }
-  }
+  };
 
-  handleEmojiMouseEnter = ({ target }) => {
-    target.src = target.getAttribute('data-original');
-  }
+  handleMouseEnter = ({ currentTarget }) => {
+    if (autoPlayGif) {
+      return;
+    }
 
-  handleEmojiMouseLeave = ({ target }) => {
-    target.src = target.getAttribute('data-static');
-  }
+    const emojis = currentTarget.querySelectorAll('.custom-emoji');
+
+    for (var i = 0; i < emojis.length; i++) {
+      let emoji = emojis[i];
+      emoji.src = emoji.getAttribute('data-original');
+    }
+  };
+
+  handleMouseLeave = ({ currentTarget }) => {
+    if (autoPlayGif) {
+      return;
+    }
+
+    const emojis = currentTarget.querySelectorAll('.custom-emoji');
+
+    for (var i = 0; i < emojis.length; i++) {
+      let emoji = emojis[i];
+      emoji.src = emoji.getAttribute('data-static');
+    }
+  };
 
   render () {
     const { announcement } = this.props;
 
     return (
       <div
-        className='announcements__item__content'
+        className='announcements__item__content translate'
         ref={this.setRef}
         dangerouslySetInnerHTML={{ __html: announcement.get('contentHtml') }}
+        onMouseEnter={this.handleMouseEnter}
+        onMouseLeave={this.handleMouseLeave}
       />
     );
   }
@@ -221,11 +216,11 @@ class Reaction extends ImmutablePureComponent {
     } else {
       addReaction(announcementId, reaction.get('name'));
     }
-  }
+  };
 
-  handleMouseEnter = () => this.setState({ hovered: true })
+  handleMouseEnter = () => this.setState({ hovered: true });
 
-  handleMouseLeave = () => this.setState({ hovered: false })
+  handleMouseLeave = () => this.setState({ hovered: false });
 
   render () {
     const { reaction } = this.props;
@@ -259,7 +254,7 @@ class ReactionsBar extends ImmutablePureComponent {
   handleEmojiPick = data => {
     const { addReaction, announcementId } = this.props;
     addReaction(announcementId, data.native.replace(/:/g, ''));
-  }
+  };
 
   willEnter () {
     return { scale: reduceMotion ? 1 : 0 };
@@ -396,21 +391,21 @@ class Announcements extends ImmutablePureComponent {
   _markAnnouncementAsRead () {
     const { dismissAnnouncement, announcements } = this.props;
     const { index } = this.state;
-    const announcement = announcements.get(index);
+    const announcement = announcements.get(announcements.size - 1 - index);
     if (!announcement.get('read')) dismissAnnouncement(announcement.get('id'));
   }
 
   handleChangeIndex = index => {
     this.setState({ index: index % this.props.announcements.size });
-  }
+  };
 
   handleNextClick = () => {
     this.setState({ index: (this.state.index + 1) % this.props.announcements.size });
-  }
+  };
 
   handlePrevClick = () => {
     this.setState({ index: (this.props.announcements.size + this.state.index - 1) % this.props.announcements.size });
-  }
+  };
 
   render () {
     const { announcements, intl } = this.props;

@@ -8,11 +8,13 @@ class Keys::ClaimService < BaseService
                :key, :signature
 
     def initialize(account, device_id, key_attributes = {})
-      @account   = account
-      @device_id = device_id
-      @key_id    = key_attributes[:key_id]
-      @key       = key_attributes[:key]
-      @signature = key_attributes[:signature]
+      super(
+        account:   account,
+        device_id: device_id,
+        key_id:    key_attributes[:key_id],
+        key:       key_attributes[:key],
+        signature: key_attributes[:signature],
+      )
     end
   end
 
@@ -70,7 +72,7 @@ class Keys::ClaimService < BaseService
 
   def build_post_request(uri)
     Request.new(:post, uri).tap do |request|
-      request.on_behalf_of(@source_account, :uri)
+      request.on_behalf_of(@source_account)
       request.add_headers(HEADERS)
     end
   end

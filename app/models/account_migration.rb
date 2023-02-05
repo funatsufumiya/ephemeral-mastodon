@@ -14,6 +14,9 @@
 #
 
 class AccountMigration < ApplicationRecord
+  include Redisable
+  include Lockable
+
   COOLDOWN_PERIOD = 30.days.freeze
 
   belongs_to :account
@@ -39,7 +42,9 @@ class AccountMigration < ApplicationRecord
 
     return false unless errors.empty?
 
-    save
+    with_lock("account_migration:#{account.id}") do
+      save
+    end
   end
 
   def cooldown_at
@@ -53,8 +58,8 @@ class AccountMigration < ApplicationRecord
   private
 
   def set_target_account
-    self.target_account = ResolveAccountService.new.call(acct)
-  rescue Webfinger::Error, HTTP::Error, OpenSSL::SSL::SSLError, Mastodon::Error
+    self.target_account = ResolveAccountService.new.call(acct, skip_cache: true)
+  rescue Webfinger::Error, HTTP::Error, OpenSSL::SSL::SSLError, Mastodon::Error, Addressable::URI::InvalidURIError
     # Validation will take care of it
   end
 

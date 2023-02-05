@@ -4,13 +4,7 @@ exports[`<Button /> adds class "button-secondary" if props.secondary given 1`] =
 <button
   className="button button-secondary"
   onClick={[Function]}
-  style={
-    Object {
-      "height": "36px",
-      "lineHeight": "36px",
-      "padding": "0 16px",
-    }
-  }
+  type="button"
 />
 `;
 
@@ -18,13 +12,7 @@ exports[`<Button /> renders a button element 1`] = `
 <button
   className="button"
   onClick={[Function]}
-  style={
-    Object {
-      "height": "36px",
-      "lineHeight": "36px",
-      "padding": "0 16px",
-    }
-  }
+  type="button"
 />
 `;
 
@@ -33,13 +21,7 @@ exports[`<Button /> renders a disabled attribute if props.disabled given 1`] = `
   className="button"
   disabled={true}
   onClick={[Function]}
-  style={
-    Object {
-      "height": "36px",
-      "lineHeight": "36px",
-      "padding": "0 16px",
-    }
-  }
+  type="button"
 />
 `;
 
@@ -47,13 +29,7 @@ exports[`<Button /> renders class="button--block" if props.block given 1`] = `
 <button
   className="button button--block"
   onClick={[Function]}
-  style={
-    Object {
-      "height": "36px",
-      "lineHeight": "36px",
-      "padding": "0 16px",
-    }
-  }
+  type="button"
 />
 `;
 
@@ -61,13 +37,7 @@ exports[`<Button /> renders the children 1`] = `
 <button
   className="button"
   onClick={[Function]}
-  style={
-    Object {
-      "height": "36px",
-      "lineHeight": "36px",
-      "padding": "0 16px",
-    }
-  }
+  type="button"
 >
   <p>
     children
@@ -79,13 +49,7 @@ exports[`<Button /> renders the given text 1`] = `
 <button
   className="button"
   onClick={[Function]}
-  style={
-    Object {
-      "height": "36px",
-      "lineHeight": "36px",
-      "padding": "0 16px",
-    }
-  }
+  type="button"
 >
   foo
 </button>
@@ -95,13 +59,7 @@ exports[`<Button /> renders the props.text instead of children 1`] = `
 <button
   className="button"
   onClick={[Function]}
-  style={
-    Object {
-      "height": "36px",
-      "lineHeight": "36px",
-      "padding": "0 16px",
-    }
-  }
+  type="button"
 >
   foo
 </button>

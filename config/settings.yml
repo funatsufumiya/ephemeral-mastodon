@@ -17,7 +17,6 @@ defaults: &defaults
   timeline_preview: false
   show_staff_badge: true
   default_sensitive: false
-  hide_network: false
   unfollow_modal: false
   boost_modal: false
   delete_modal: true
@@ -36,18 +35,21 @@ defaults: &defaults
   use_blurhash: true
   use_pending_items: false
   trends: true
+  trends_as_landing_page: true
   trendable_by_default: false
   crop_images: true
   notification_emails:
-    follow: false
+    follow: true
     reblog: false
     favourite: false
-    mention: false
+    mention: true
     follow_request: true
     digest: true
     report: true
     pending_account: true
     trending_tag: true
+    appeal: true
+  always_send_emails: false
   interactions:
     must_be_follower: false
     must_be_following: false
@@ -62,14 +64,13 @@ defaults: &defaults
     - mod
     - moderator
   disallowed_hashtags: # space separated string or list of hashtags without the hash
-  enable_bootstrap_timeline_accounts: true
   bootstrap_timeline_accounts: ''
   activity_api_enabled: true
   peers_api_enabled: true
-  show_known_fediverse_at_about_page: true
-  spam_check_enabled: true
   show_domain_blocks: 'disabled'
   show_domain_blocks_rationale: 'disabled'
+  require_invite_text: false
+  backups_retention_period: 7
 
 development:
   <<: *defaults

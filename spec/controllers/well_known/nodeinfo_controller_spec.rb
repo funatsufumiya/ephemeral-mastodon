@@ -8,7 +8,7 @@ describe WellKnown::NodeInfoController, type: :controller do
       get :index
 
       expect(response).to have_http_status(200)
-      expect(response.content_type).to eq 'application/json'
+      expect(response.media_type).to eq 'application/json'
 
       json = body_as_json
 
@@ -23,10 +23,12 @@ describe WellKnown::NodeInfoController, type: :controller do
       get :show
 
       expect(response).to have_http_status(200)
-      expect(response.content_type).to eq 'application/json'
+      expect(response.media_type).to eq 'application/json'
 
       json = body_as_json
 
+      expect({ "foo" => 0 }).not_to match_json_schema("nodeinfo_2.0")
+      expect(json).to match_json_schema("nodeinfo_2.0")
       expect(json[:version]).to eq '2.0'
       expect(json[:usage]).to be_a Hash
       expect(json[:software]).to be_a Hash

@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-lock '3.14.1'
+lock '3.17.1'
 
-set :repo_url, ENV.fetch('REPO', 'https://github.com/tootsuite/mastodon.git')
-set :branch, ENV.fetch('BRANCH', 'master')
+set :repo_url, ENV.fetch('REPO', 'https://github.com/mastodon/mastodon.git')
+set :branch, ENV.fetch('BRANCH', 'main')
 
 set :application, 'mastodon'
 set :rbenv_type, :user

@@ -2,55 +2,41 @@ import React from 'react';
 import ImmutablePropTypes from 'react-immutable-proptypes';
 import PropTypes from 'prop-types';
 import { autoPlayGif } from 'mastodon/initial_state';
+import Skeleton from 'mastodon/components/skeleton';
 
 export default class DisplayName extends React.PureComponent {
 
   static propTypes = {
-    account: ImmutablePropTypes.map.isRequired,
+    account: ImmutablePropTypes.map,
     others: ImmutablePropTypes.list,
     localDomain: PropTypes.string,
   };
 
-  _updateEmojis () {
-    const node = this.node;
-
-    if (!node || autoPlayGif) {
+  handleMouseEnter = ({ currentTarget }) => {
+    if (autoPlayGif) {
       return;
     }
 
-    const emojis = node.querySelectorAll('.custom-emoji');
+    const emojis = currentTarget.querySelectorAll('.custom-emoji');
 
     for (var i = 0; i < emojis.length; i++) {
       let emoji = emojis[i];
-      if (emoji.classList.contains('status-emoji')) {
-        continue;
-      }
-      emoji.classList.add('status-emoji');
-
-      emoji.addEventListener('mouseenter', this.handleEmojiMouseEnter, false);
-      emoji.addEventListener('mouseleave', this.handleEmojiMouseLeave, false);
+      emoji.src = emoji.getAttribute('data-original');
     }
-  }
+  };
 
-  componentDidMount () {
-    this._updateEmojis();
-  }
+  handleMouseLeave = ({ currentTarget }) => {
+    if (autoPlayGif) {
+      return;
+    }
 
-  componentDidUpdate () {
-    this._updateEmojis();
-  }
+    const emojis = currentTarget.querySelectorAll('.custom-emoji');
 
-  handleEmojiMouseEnter = ({ target }) => {
-    target.src = target.getAttribute('data-original');
-  }
-
-  handleEmojiMouseLeave = ({ target }) => {
-    target.src = target.getAttribute('data-static');
-  }
-
-  setRef = (c) => {
-    this.node = c;
-  }
+    for (var i = 0; i < emojis.length; i++) {
+      let emoji = emojis[i];
+      emoji.src = emoji.getAttribute('data-static');
+    }
+  };
 
   render () {
     const { others, localDomain } = this.props;
@@ -63,7 +49,7 @@ export default class DisplayName extends React.PureComponent {
       if (others.size - 2 > 0) {
         suffix = `+${others.size - 2}`;
       }
-    } else {
+    } else if ((others && others.size > 0) || this.props.account) {
       if (others && others.size > 0) {
         account = others.first();
       } else {
@@ -78,10 +64,13 @@ export default class DisplayName extends React.PureComponent {
 
       displayName = <bdi><strong className='display-name__html' dangerouslySetInnerHTML={{ __html: account.get('display_name_html') }} /></bdi>;
       suffix      = <span className='display-name__account'>@{acct}</span>;
+    } else {
+      displayName = <bdi><strong className='display-name__html'><Skeleton width='10ch' /></strong></bdi>;
+      suffix = <span className='display-name__account'><Skeleton width='7ch' /></span>;
     }
 
     return (
-      <span className='display-name' ref={this.setRef}>
+      <span className='display-name' onMouseEnter={this.handleMouseEnter} onMouseLeave={this.handleMouseLeave}>
         {displayName} {suffix}
       </span>
     );

@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require Rails.root.join('app', 'lib', 'sanitize_config.rb')
 
 describe Sanitize::Config do
   describe '::MASTODON_STRICT' do
@@ -37,6 +36,10 @@ describe Sanitize::Config do
 
     it 'removes a with unsupported scheme in href' do
       expect(Sanitize.fragment('<a href="foo://bar">Test</a>', subject)).to eq 'Test'
+    end
+
+    it 'does not re-interpret HTML when removing unsupported links' do
+      expect(Sanitize.fragment('<a href="foo://bar">Test&lt;a href="https://example.com"&gt;test&lt;/a&gt;</a>', subject)).to eq 'Test&lt;a href="https://example.com"&gt;test&lt;/a&gt;'
     end
 
     it 'keeps a with href' do

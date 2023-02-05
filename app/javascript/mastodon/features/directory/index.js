@@ -10,9 +10,10 @@ import { fetchDirectory, expandDirectory } from 'mastodon/actions/directory';
 import { List as ImmutableList } from 'immutable';
 import AccountCard from './components/account_card';
 import RadioButton from 'mastodon/components/radio_button';
-import classNames from 'classnames';
 import LoadMore from 'mastodon/components/load_more';
-import { ScrollContainer } from 'react-router-scroll-4';
+import ScrollContainer from 'mastodon/containers/scroll_container';
+import LoadingIndicator from 'mastodon/components/loading_indicator';
+import { Helmet } from 'react-helmet';
 
 const messages = defineMessages({
   title: { id: 'column.directory', defaultMessage: 'Browse profiles' },
@@ -40,7 +41,6 @@ class Directory extends React.PureComponent {
     isLoading: PropTypes.bool,
     accountIds: ImmutablePropTypes.list.isRequired,
     dispatch: PropTypes.func.isRequired,
-    shouldUpdateScroll: PropTypes.func,
     columnId: PropTypes.string,
     intl: PropTypes.object.isRequired,
     multiColumn: PropTypes.bool,
@@ -64,7 +64,7 @@ class Directory extends React.PureComponent {
     } else {
       dispatch(addColumn('DIRECTORY', this.getParams(this.props, this.state)));
     }
-  }
+  };
 
   getParams = (props, state) => ({
     order: state.order === null ? (props.params.order || 'active') : state.order,
@@ -74,11 +74,11 @@ class Directory extends React.PureComponent {
   handleMove = dir => {
     const { columnId, dispatch } = this.props;
     dispatch(moveColumn(columnId, dir));
-  }
+  };
 
   handleHeaderClick = () => {
     this.column.scrollTop();
-  }
+  };
 
   componentDidMount () {
     const { dispatch } = this.props;
@@ -97,7 +97,7 @@ class Directory extends React.PureComponent {
 
   setRef = c => {
     this.column = c;
-  }
+  };
 
   handleChangeOrder = e => {
     const { dispatch, columnId } = this.props;
@@ -107,7 +107,7 @@ class Directory extends React.PureComponent {
     } else {
       this.setState({ order: e.target.value });
     }
-  }
+  };
 
   handleChangeLocal = e => {
     const { dispatch, columnId } = this.props;
@@ -117,20 +117,20 @@ class Directory extends React.PureComponent {
     } else {
       this.setState({ local: e.target.value === '1' });
     }
-  }
+  };
 
   handleLoadMore = () => {
     const { dispatch } = this.props;
     dispatch(expandDirectory(this.getParams(this.props, this.state)));
-  }
+  };
 
   render () {
-    const { isLoading, accountIds, intl, columnId, multiColumn, domain, shouldUpdateScroll } = this.props;
+    const { isLoading, accountIds, intl, columnId, multiColumn, domain } = this.props;
     const { order, local }  = this.getParams(this.props, this.state);
     const pinned = !!columnId;
 
     const scrollableArea = (
-      <div className='scrollable' style={{ background: 'transparent' }}>
+      <div className='scrollable'>
         <div className='filter-form'>
           <div className='filter-form__column' role='group'>
             <RadioButton name='order' value='active' label={intl.formatMessage(messages.recentlyActive)} checked={order === 'active'} onChange={this.handleChangeOrder} />
@@ -143,8 +143,10 @@ class Directory extends React.PureComponent {
           </div>
         </div>
 
-        <div className={classNames('directory__list', { loading: isLoading })}>
-          {accountIds.map(accountId => <AccountCard id={accountId} key={accountId} />)}
+        <div className='directory__list'>
+          {isLoading ? <LoadingIndicator /> : accountIds.map(accountId => (
+            <AccountCard id={accountId} key={accountId} />
+          ))}
         </div>
 
         <LoadMore onClick={this.handleLoadMore} visible={!isLoading} />
@@ -163,7 +165,12 @@ class Directory extends React.PureComponent {
           multiColumn={multiColumn}
         />
 
-        {multiColumn && !pinned ? <ScrollContainer scrollKey='directory' shouldUpdateScroll={shouldUpdateScroll}>{scrollableArea}</ScrollContainer> : scrollableArea}
+        {multiColumn && !pinned ? <ScrollContainer scrollKey='directory'>{scrollableArea}</ScrollContainer> : scrollableArea}
+
+        <Helmet>
+          <title>{intl.formatMessage(messages.title)}</title>
+          <meta name='robots' content='noindex' />
+        </Helmet>
       </Column>
     );
   }

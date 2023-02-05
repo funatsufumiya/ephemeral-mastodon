@@ -13,7 +13,12 @@ class ConfirmationModal extends React.PureComponent {
     onConfirm: PropTypes.func.isRequired,
     secondary: PropTypes.string,
     onSecondary: PropTypes.func,
+    closeWhenConfirm: PropTypes.bool,
     intl: PropTypes.object.isRequired,
+  };
+
+  static defaultProps = {
+    closeWhenConfirm: true,
   };
 
   componentDidMount() {
@@ -21,22 +26,24 @@ class ConfirmationModal extends React.PureComponent {
   }
 
   handleClick = () => {
-    this.props.onClose();
+    if (this.props.closeWhenConfirm) {
+      this.props.onClose();
+    }
     this.props.onConfirm();
-  }
+  };
 
   handleSecondary = () => {
     this.props.onClose();
     this.props.onSecondary();
-  }
+  };
 
   handleCancel = () => {
     this.props.onClose();
-  }
+  };
 
   setRef = (c) => {
     this.button = c;
-  }
+  };
 
   render () {
     const { message, confirm, secondary } = this.props;

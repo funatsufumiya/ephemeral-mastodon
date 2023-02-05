@@ -10,6 +10,7 @@ import { defineMessages, injectIntl } from 'react-intl';
 import { replyCompose } from 'mastodon/actions/compose';
 import { reblog, favourite, unreblog, unfavourite } from 'mastodon/actions/interactions';
 import { makeGetStatus } from 'mastodon/selectors';
+import { initBoostModal } from 'mastodon/actions/boosts';
 import { openModal } from 'mastodon/actions/modal';
 
 const messages = defineMessages({
@@ -22,6 +23,7 @@ const messages = defineMessages({
   favourite: { id: 'status.favourite', defaultMessage: 'Favourite' },
   replyConfirm: { id: 'confirmations.reply.confirm', defaultMessage: 'Reply' },
   replyMessage: { id: 'confirmations.reply.message', defaultMessage: 'Replying now will overwrite the message you are currently composing. Are you sure you want to proceed?' },
+  open: { id: 'status.open', defaultMessage: 'Expand this status' },
 });
 
 const makeMapStateToProps = () => {
@@ -41,6 +43,7 @@ class Footer extends ImmutablePureComponent {
 
   static contextTypes = {
     router: PropTypes.object,
+    identity: PropTypes.object,
   };
 
   static propTypes = {
@@ -49,56 +52,107 @@ class Footer extends ImmutablePureComponent {
     intl: PropTypes.object.isRequired,
     dispatch: PropTypes.func.isRequired,
     askReplyConfirmation: PropTypes.bool,
+    withOpenButton: PropTypes.bool,
+    onClose: PropTypes.func,
   };
 
   _performReply = () => {
-    const { dispatch, status } = this.props;
-    dispatch(replyCompose(status, this.context.router.history));
+    const { dispatch, status, onClose } = this.props;
+    const { router } = this.context;
+
+    if (onClose) {
+      onClose(true);
+    }
+
+    dispatch(replyCompose(status, router.history));
   };
 
   handleReplyClick = () => {
-    const { dispatch, askReplyConfirmation, intl } = this.props;
+    const { dispatch, askReplyConfirmation, status, intl } = this.props;
+    const { signedIn } = this.context.identity;
 
-    if (askReplyConfirmation) {
-      dispatch(openModal('CONFIRM', {
-        message: intl.formatMessage(messages.replyMessage),
-        confirm: intl.formatMessage(messages.replyConfirm),
-        onConfirm: this._performReply,
-      }));
+    if (signedIn) {
+      if (askReplyConfirmation) {
+        dispatch(openModal('CONFIRM', {
+          message: intl.formatMessage(messages.replyMessage),
+          confirm: intl.formatMessage(messages.replyConfirm),
+          onConfirm: this._performReply,
+        }));
+      } else {
+        this._performReply();
+      }
     } else {
-      this._performReply();
+      dispatch(openModal('INTERACTION', {
+        type: 'reply',
+        accountId: status.getIn(['account', 'id']),
+        url: status.get('url'),
+      }));
     }
   };
 
   handleFavouriteClick = () => {
     const { dispatch, status } = this.props;
+    const { signedIn } = this.context.identity;
 
-    if (status.get('favourited')) {
-      dispatch(unfavourite(status));
+    if (signedIn) {
+      if (status.get('favourited')) {
+        dispatch(unfavourite(status));
+      } else {
+        dispatch(favourite(status));
+      }
     } else {
-      dispatch(favourite(status));
+      dispatch(openModal('INTERACTION', {
+        type: 'favourite',
+        accountId: status.getIn(['account', 'id']),
+        url: status.get('url'),
+      }));
     }
   };
 
-  _performReblog = () => {
-    const { dispatch, status } = this.props;
-    dispatch(reblog(status));
-  }
+  _performReblog = (status, privacy) => {
+    const { dispatch } = this.props;
+    dispatch(reblog(status, privacy));
+  };
 
   handleReblogClick = e => {
     const { dispatch, status } = this.props;
+    const { signedIn } = this.context.identity;
 
-    if (status.get('reblogged')) {
-      dispatch(unreblog(status));
-    } else if ((e && e.shiftKey) || !boostModal) {
-      this._performReblog();
+    if (signedIn) {
+      if (status.get('reblogged')) {
+        dispatch(unreblog(status));
+      } else if ((e && e.shiftKey) || !boostModal) {
+        this._performReblog(status);
+      } else {
+        dispatch(initBoostModal({ status, onReblog: this._performReblog }));
+      }
     } else {
-      dispatch(openModal('BOOST', { status, onReblog: this._performReblog }));
+      dispatch(openModal('INTERACTION', {
+        type: 'reblog',
+        accountId: status.getIn(['account', 'id']),
+        url: status.get('url'),
+      }));
     }
   };
 
+  handleOpenClick = e => {
+    const { router } = this.context;
+
+    if (e.button !== 0 || !router) {
+      return;
+    }
+
+    const { status, onClose } = this.props;
+
+    if (onClose) {
+      onClose();
+    }
+
+    router.history.push(`/@${status.getIn(['account', 'acct'])}/${status.get('id')}`);
+  };
+
   render () {
-    const { status, intl } = this.props;
+    const { status, intl, withOpenButton } = this.props;
 
     const publicStatus  = ['public', 'unlisted'].includes(status.get('visibility'));
     const reblogPrivate = status.getIn(['account', 'id']) === me && status.get('visibility') === 'private';
@@ -128,8 +182,9 @@ class Footer extends ImmutablePureComponent {
     return (
       <div className='picture-in-picture__footer'>
         <IconButton className='status__action-bar-button' title={replyTitle} icon={status.get('in_reply_to_account_id') === status.getIn(['account', 'id']) ? 'reply' : replyIcon} onClick={this.handleReplyClick} counter={status.get('replies_count')} obfuscateCount />
-        <IconButton className={classNames('status__action-bar-button', { reblogPrivate })} disabled={!publicStatus && !reblogPrivate}  active={status.get('reblogged')} pressed={status.get('reblogged')} title={reblogTitle} icon='retweet' onClick={this.handleReblogClick} counter={status.get('reblogs_count')} />
-        <IconButton className='status__action-bar-button star-icon' animate active={status.get('favourited')} pressed={status.get('favourited')} title={intl.formatMessage(messages.favourite)} icon='star' onClick={this.handleFavouriteClick} counter={status.get('favourites_count')} />
+        <IconButton className={classNames('status__action-bar-button', { reblogPrivate })} disabled={!publicStatus && !reblogPrivate}  active={status.get('reblogged')} title={reblogTitle} icon='retweet' onClick={this.handleReblogClick} counter={status.get('reblogs_count')} />
+        <IconButton className='status__action-bar-button star-icon' animate active={status.get('favourited')} title={intl.formatMessage(messages.favourite)} icon='star' onClick={this.handleFavouriteClick} counter={status.get('favourites_count')} />
+        {withOpenButton && <IconButton className='status__action-bar-button' title={intl.formatMessage(messages.open)} icon='external-link' onClick={this.handleOpenClick} href={`/@${status.getIn(['account', 'acct'])}\/${status.get('id')}`} />}
       </div>
     );
   }

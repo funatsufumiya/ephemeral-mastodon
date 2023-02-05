@@ -12,7 +12,13 @@
 class UnavailableDomain < ApplicationRecord
   include DomainNormalizable
 
+  validates :domain, presence: true, uniqueness: true
+
   after_commit :reset_cache!
+
+  def to_log_human_identifier
+    domain
+  end
 
   private
 

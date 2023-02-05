@@ -16,7 +16,6 @@ export default class IconButton extends React.PureComponent {
     onKeyPress: PropTypes.func,
     size: PropTypes.number,
     active: PropTypes.bool,
-    pressed: PropTypes.bool,
     expanded: PropTypes.bool,
     style: PropTypes.object,
     activeStyle: PropTypes.object,
@@ -27,6 +26,8 @@ export default class IconButton extends React.PureComponent {
     tabIndex: PropTypes.string,
     counter: PropTypes.number,
     obfuscateCount: PropTypes.bool,
+    href: PropTypes.string,
+    ariaHidden: PropTypes.bool,
   };
 
   static defaultProps = {
@@ -36,12 +37,13 @@ export default class IconButton extends React.PureComponent {
     animate: false,
     overlay: false,
     tabIndex: '0',
+    ariaHidden: false,
   };
 
   state = {
     activate: false,
     deactivate: false,
-  }
+  };
 
   componentWillReceiveProps (nextProps) {
     if (!nextProps.animate) return;
@@ -59,25 +61,25 @@ export default class IconButton extends React.PureComponent {
     if (!this.props.disabled) {
       this.props.onClick(e);
     }
-  }
+  };
 
   handleKeyPress = (e) => {
     if (this.props.onKeyPress && !this.props.disabled) {
       this.props.onKeyPress(e);
     }
-  }
+  };
 
   handleMouseDown = (e) => {
     if (!this.props.disabled && this.props.onMouseDown) {
       this.props.onMouseDown(e);
     }
-  }
+  };
 
   handleKeyDown = (e) => {
     if (!this.props.disabled && this.props.onKeyDown) {
       this.props.onKeyDown(e);
     }
-  }
+  };
 
   render () {
     const style = {
@@ -97,11 +99,12 @@ export default class IconButton extends React.PureComponent {
       icon,
       inverted,
       overlay,
-      pressed,
       tabIndex,
       title,
       counter,
       obfuscateCount,
+      href,
+      ariaHidden,
     } = this.props;
 
     const {
@@ -123,11 +126,26 @@ export default class IconButton extends React.PureComponent {
       style.width = 'auto';
     }
 
+    let contents = (
+      <React.Fragment>
+        <Icon id={icon} fixedWidth aria-hidden='true' /> {typeof counter !== 'undefined' && <span className='icon-button__counter'><AnimatedNumber value={counter} obfuscate={obfuscateCount} /></span>}
+      </React.Fragment>
+    );
+
+    if (href && !this.prop) {
+      contents = (
+        <a href={href} target='_blank' rel='noopener noreferrer'>
+          {contents}
+        </a>
+      );
+    }
+
     return (
       <button
+        type='button'
         aria-label={title}
-        aria-pressed={pressed}
         aria-expanded={expanded}
+        aria-hidden={ariaHidden}
         title={title}
         className={classes}
         onClick={this.handleClick}
@@ -138,7 +156,7 @@ export default class IconButton extends React.PureComponent {
         tabIndex={tabIndex}
         disabled={disabled}
       >
-        <Icon id={icon} fixedWidth aria-hidden='true' /> {typeof counter !== 'undefined' && <span className='icon-button__counter'><AnimatedNumber value={counter} obfuscate={obfuscateCount} /></span>}
+        {contents}
       </button>
     );
   }

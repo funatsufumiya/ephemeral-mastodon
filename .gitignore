@@ -40,13 +40,9 @@
 
 # Ignore postgres + redis + elasticsearch volume optionally created by docker-compose
 /postgres
+/postgres14
 /redis
 /elasticsearch
-
-# ignore Helm lockfile, dependency charts, and local values file
-/chart/Chart.lock
-/chart/charts/*.tgz
-/chart/values.yaml
 
 # Ignore Apple files
 .DS_Store

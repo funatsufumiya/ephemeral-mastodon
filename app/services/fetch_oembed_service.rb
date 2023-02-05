@@ -2,6 +2,7 @@
 
 class FetchOEmbedService
   ENDPOINT_CACHE_EXPIRES_IN = 24.hours.freeze
+  URL_REGEX                 = /(=(http[s]?(%3A|:)(\/\/|%2F%2F)))([^&]*)/i.freeze
 
   attr_reader :url, :options, :format, :endpoint_url
 
@@ -27,7 +28,7 @@ class FetchOEmbedService
     page    = Nokogiri::HTML(html)
 
     if @format.nil? || @format == :json
-      @endpoint_url ||= page.at_xpath('//link[@type="application/json+oembed"]')&.attribute('href')&.value
+      @endpoint_url ||= page.at_xpath('//link[@type="application/json+oembed"]|//link[@type="text/json+oembed"]')&.attribute('href')&.value
       @format       ||= :json if @endpoint_url
     end
 
@@ -38,7 +39,17 @@ class FetchOEmbedService
 
     return if @endpoint_url.blank?
 
-    @endpoint_url = (Addressable::URI.parse(@url) + @endpoint_url).to_s
+    @endpoint_url = begin
+      base_url = Addressable::URI.parse(@url)
+
+      # If the OEmbed endpoint is given as http but the URL we opened
+      # was served over https, we can assume OEmbed will be available
+      # through https as well
+
+      (base_url + @endpoint_url).tap do |absolute_url|
+        absolute_url.scheme = base_url.scheme if base_url.scheme == 'https'
+      end.to_s
+    end
 
     cache_endpoint!
   rescue Addressable::URI::InvalidURIError
@@ -55,10 +66,12 @@ class FetchOEmbedService
   end
 
   def cache_endpoint!
+    return unless URL_REGEX.match?(@endpoint_url)
+
     url_domain = Addressable::URI.parse(@url).normalized_host
 
     endpoint_hash = {
-      endpoint: @endpoint_url.gsub(/(=(http[s]?(%3A|:)(\/\/|%2F%2F)))([^&]*)/i, '={url}'),
+      endpoint: @endpoint_url.gsub(URL_REGEX, '={url}'),
       format: @format,
     }
 
@@ -87,7 +100,7 @@ class FetchOEmbedService
   end
 
   def validate(oembed)
-    oembed if oembed[:version] == '1.0' && oembed[:type].present?
+    oembed if oembed[:version].to_s == '1.0' && oembed[:type].present?
   end
 
   def html

@@ -3,24 +3,24 @@ import React from 'react';
 import { HotKeys } from 'react-hotkeys';
 import { defineMessages, injectIntl } from 'react-intl';
 import { connect } from 'react-redux';
-import { Redirect, withRouter } from 'react-router-dom';
+import { Redirect, Route, withRouter } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import NotificationsContainer from './containers/notifications_container';
 import LoadingBarContainer from './containers/loading_bar_container';
 import ModalContainer from './containers/modal_container';
-import { isMobile } from '../../is_mobile';
+import { layoutFromWindow } from 'mastodon/is_mobile';
 import { debounce } from 'lodash';
 import { uploadCompose, resetCompose, changeComposeSpoilerness } from '../../actions/compose';
 import { expandHomeTimeline } from '../../actions/timelines';
 import { expandNotifications } from '../../actions/notifications';
-import { fetchFilters } from '../../actions/filters';
+import { fetchServer } from '../../actions/server';
 import { clearHeight } from '../../actions/height_cache';
-import { focusApp, unfocusApp } from 'mastodon/actions/app';
+import { focusApp, unfocusApp, changeLayout } from 'mastodon/actions/app';
 import { synchronouslySubmitMarkers, submitMarkers, fetchMarkers } from 'mastodon/actions/markers';
 import { WrappedSwitch, WrappedRoute } from './util/react_router_helpers';
+import BundleColumnError from './components/bundle_column_error';
 import UploadArea from './components/upload_area';
 import ColumnsAreaContainer from './containers/columns_area_container';
-import DocumentTitle from './components/document_title';
 import PictureInPicture from 'mastodon/features/picture_in_picture';
 import {
   Compose,
@@ -40,21 +40,24 @@ import {
   HashtagTimeline,
   Notifications,
   FollowRequests,
-  GenericNotFound,
   FavouritedStatuses,
   BookmarkedStatuses,
+  FollowedTags,
   ListTimeline,
   Blocks,
   DomainBlocks,
   Mutes,
   PinnedStatuses,
   Lists,
-  Search,
   Directory,
+  Explore,
+  FollowRecommendations,
+  About,
+  PrivacyPolicy,
 } from './util/async-components';
-import { me, forceSingleColumn } from '../../initial_state';
-import { previewState as previewMediaState } from './components/media_modal';
-import { previewState as previewVideoState } from './components/video_modal';
+import initialState, { me, owner, singleUserMode, showTrends, trendsAsLanding } from '../../initial_state';
+import { closeOnboarding, INTRODUCTION_VERSION } from 'mastodon/actions/onboarding';
+import Header from './components/header';
 
 // Dummy import, to make sure that <Status /> ends up in the application bundle.
 // Without this it ends up in ~8 very commonly used bundles.
@@ -66,11 +69,14 @@ const messages = defineMessages({
 });
 
 const mapStateToProps = state => ({
+  layout: state.getIn(['meta', 'layout']),
   isComposing: state.getIn(['compose', 'is_composing']),
   hasComposingText: state.getIn(['compose', 'text']).trim().length !== 0,
   hasMediaAttachments: state.getIn(['compose', 'media_attachments']).size > 0,
   canUploadMore: !state.getIn(['compose', 'media_attachments']).some(x => ['audio', 'video'].includes(x.get('type'))) && state.getIn(['compose', 'media_attachments']).size < 4,
   dropdownMenuIsOpen: state.getIn(['dropdown_menu', 'openId']) !== null,
+  firstLaunch: state.getIn(['settings', 'introductionVersion'], 0) < INTRODUCTION_VERSION,
+  username: state.getIn(['accounts', me, 'username']),
 });
 
 const keyMap = {
@@ -108,20 +114,18 @@ const keyMap = {
 
 class SwitchingColumnsArea extends React.PureComponent {
 
+  static contextTypes = {
+    identity: PropTypes.object,
+  };
+
   static propTypes = {
     children: PropTypes.node,
     location: PropTypes.object,
-    onLayoutChange: PropTypes.func.isRequired,
-  };
-
-  state = {
-    mobile: isMobile(window.innerWidth),
+    mobile: PropTypes.bool,
   };
 
   componentWillMount () {
-    window.addEventListener('resize', this.handleResize, { passive: true });
-
-    if (this.state.mobile || forceSingleColumn) {
+    if (this.props.mobile) {
       document.body.classList.toggle('layout-single-column', true);
       document.body.classList.toggle('layout-multiple-columns', false);
     } else {
@@ -130,95 +134,95 @@ class SwitchingColumnsArea extends React.PureComponent {
     }
   }
 
-  componentDidUpdate (prevProps, prevState) {
+  componentDidUpdate (prevProps) {
     if (![this.props.location.pathname, '/'].includes(prevProps.location.pathname)) {
       this.node.handleChildrenContentChange();
     }
 
-    if (prevState.mobile !== this.state.mobile && !forceSingleColumn) {
-      document.body.classList.toggle('layout-single-column', this.state.mobile);
-      document.body.classList.toggle('layout-multiple-columns', !this.state.mobile);
-    }
-  }
-
-  componentWillUnmount () {
-    window.removeEventListener('resize', this.handleResize);
-  }
-
-  shouldUpdateScroll (_, { location }) {
-    return location.state !== previewMediaState && location.state !== previewVideoState;
-  }
-
-  handleLayoutChange = debounce(() => {
-    // The cached heights are no longer accurate, invalidate
-    this.props.onLayoutChange();
-  }, 500, {
-    trailing: true,
-  })
-
-  handleResize = () => {
-    const mobile = isMobile(window.innerWidth);
-
-    if (mobile !== this.state.mobile) {
-      this.handleLayoutChange.cancel();
-      this.props.onLayoutChange();
-      this.setState({ mobile });
-    } else {
-      this.handleLayoutChange();
+    if (prevProps.mobile !== this.props.mobile) {
+      document.body.classList.toggle('layout-single-column', this.props.mobile);
+      document.body.classList.toggle('layout-multiple-columns', !this.props.mobile);
     }
   }
 
   setRef = c => {
     if (c) {
-      this.node = c.getWrappedInstance();
+      this.node = c;
     }
-  }
+  };
 
   render () {
-    const { children } = this.props;
-    const { mobile } = this.state;
-    const singleColumn = forceSingleColumn || mobile;
-    const redirect = singleColumn ? <Redirect from='/' to='/timelines/home' exact /> : <Redirect from='/' to='/getting-started' exact />;
+    const { children, mobile } = this.props;
+    const { signedIn } = this.context.identity;
+
+    let redirect;
+
+    if (signedIn) {
+      if (mobile) {
+        redirect = <Redirect from='/' to='/home' exact />;
+      } else {
+        redirect = <Redirect from='/' to='/getting-started' exact />;
+      }
+    } else if (singleUserMode && owner && initialState?.accounts[owner]) {
+      redirect = <Redirect from='/' to={`/@${initialState.accounts[owner].username}`} exact />;
+    } else if (showTrends && trendsAsLanding) {
+      redirect = <Redirect from='/' to='/explore' exact />;
+    } else {
+      redirect = <Redirect from='/' to='/about' exact />;
+    }
 
     return (
-      <ColumnsAreaContainer ref={this.setRef} singleColumn={singleColumn}>
+      <ColumnsAreaContainer ref={this.setRef} singleColumn={mobile}>
         <WrappedSwitch>
           {redirect}
+
           <WrappedRoute path='/getting-started' component={GettingStarted} content={children} />
           <WrappedRoute path='/keyboard-shortcuts' component={KeyboardShortcuts} content={children} />
-          <WrappedRoute path='/timelines/home' component={HomeTimeline} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/timelines/public' exact component={PublicTimeline} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/timelines/public/local' exact component={CommunityTimeline} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/timelines/direct' component={DirectTimeline} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/timelines/tag/:id' component={HashtagTimeline} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/timelines/list/:id' component={ListTimeline} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
+          <WrappedRoute path='/about' component={About} content={children} />
+          <WrappedRoute path='/privacy-policy' component={PrivacyPolicy} content={children} />
 
-          <WrappedRoute path='/notifications' component={Notifications} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/favourites' component={FavouritedStatuses} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
+          <WrappedRoute path={['/home', '/timelines/home']} component={HomeTimeline} content={children} />
+          <WrappedRoute path={['/public', '/timelines/public']} exact component={PublicTimeline} content={children} />
+          <WrappedRoute path={['/public/local', '/timelines/public/local']} exact component={CommunityTimeline} content={children} />
+          <WrappedRoute path={['/conversations', '/timelines/direct']} component={DirectTimeline} content={children} />
+          <WrappedRoute path='/tags/:id' component={HashtagTimeline} content={children} />
+          <WrappedRoute path='/lists/:id' component={ListTimeline} content={children} />
+          <WrappedRoute path='/notifications' component={Notifications} content={children} />
+          <WrappedRoute path='/favourites' component={FavouritedStatuses} content={children} />
+
           <WrappedRoute path='/bookmarks' component={BookmarkedStatuses} content={children} />
-          <WrappedRoute path='/pinned' component={PinnedStatuses} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
+          <WrappedRoute path='/pinned' component={PinnedStatuses} content={children} />
 
-          <WrappedRoute path='/search' component={Search} content={children} />
-          <WrappedRoute path='/directory' component={Directory} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
+          <WrappedRoute path='/start' component={FollowRecommendations} content={children} />
+          <WrappedRoute path='/directory' component={Directory} content={children} />
+          <WrappedRoute path={['/explore', '/search']} component={Explore} content={children} />
+          <WrappedRoute path={['/publish', '/statuses/new']} component={Compose} content={children} />
 
-          <WrappedRoute path='/statuses/new' component={Compose} content={children} />
-          <WrappedRoute path='/statuses/:statusId' exact component={Status} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/statuses/:statusId/reblogs' component={Reblogs} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/statuses/:statusId/favourites' component={Favourites} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
+          <WrappedRoute path={['/@:acct', '/accounts/:id']} exact component={AccountTimeline} content={children} />
+          <WrappedRoute path='/@:acct/tagged/:tagged?' exact component={AccountTimeline} content={children} />
+          <WrappedRoute path={['/@:acct/with_replies', '/accounts/:id/with_replies']} component={AccountTimeline} content={children} componentParams={{ withReplies: true }} />
+          <WrappedRoute path={['/accounts/:id/followers', '/users/:acct/followers', '/@:acct/followers']} component={Followers} content={children} />
+          <WrappedRoute path={['/accounts/:id/following', '/users/:acct/following', '/@:acct/following']} component={Following} content={children} />
+          <WrappedRoute path={['/@:acct/media', '/accounts/:id/media']} component={AccountGallery} content={children} />
+          <WrappedRoute path='/@:acct/:statusId' exact component={Status} content={children} />
+          <WrappedRoute path='/@:acct/:statusId/reblogs' component={Reblogs} content={children} />
+          <WrappedRoute path='/@:acct/:statusId/favourites' component={Favourites} content={children} />
 
-          <WrappedRoute path='/accounts/:accountId' exact component={AccountTimeline} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/accounts/:accountId/with_replies' component={AccountTimeline} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll, withReplies: true }} />
-          <WrappedRoute path='/accounts/:accountId/followers' component={Followers} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/accounts/:accountId/following' component={Following} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/accounts/:accountId/media' component={AccountGallery} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
+          {/* Legacy routes, cannot be easily factored with other routes because they share a param name */}
+          <WrappedRoute path='/timelines/tag/:id' component={HashtagTimeline} content={children} />
+          <WrappedRoute path='/timelines/list/:id' component={ListTimeline} content={children} />
+          <WrappedRoute path='/statuses/:statusId' exact component={Status} content={children} />
+          <WrappedRoute path='/statuses/:statusId/reblogs' component={Reblogs} content={children} />
+          <WrappedRoute path='/statuses/:statusId/favourites' component={Favourites} content={children} />
 
-          <WrappedRoute path='/follow_requests' component={FollowRequests} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/blocks' component={Blocks} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/domain_blocks' component={DomainBlocks} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/mutes' component={Mutes} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
-          <WrappedRoute path='/lists' component={Lists} content={children} componentParams={{ shouldUpdateScroll: this.shouldUpdateScroll }} />
+          <WrappedRoute path='/follow_requests' component={FollowRequests} content={children} />
+          <WrappedRoute path='/blocks' component={Blocks} content={children} />
+          <WrappedRoute path='/domain_blocks' component={DomainBlocks} content={children} />
+          <WrappedRoute path='/followed_tags' component={FollowedTags} content={children} />
+          <WrappedRoute path='/mutes' component={Mutes} content={children} />
+          <WrappedRoute path='/lists' component={Lists} content={children} />
 
-          <WrappedRoute component={GenericNotFound} content={children} />
+          <Route component={BundleColumnError} />
         </WrappedSwitch>
       </ColumnsAreaContainer>
     );
@@ -233,6 +237,7 @@ class UI extends React.PureComponent {
 
   static contextTypes = {
     router: PropTypes.object.isRequired,
+    identity: PropTypes.object.isRequired,
   };
 
   static propTypes = {
@@ -245,6 +250,9 @@ class UI extends React.PureComponent {
     location: PropTypes.object,
     intl: PropTypes.object.isRequired,
     dropdownMenuIsOpen: PropTypes.bool,
+    layout: PropTypes.string.isRequired,
+    firstLaunch: PropTypes.bool,
+    username: PropTypes.string,
   };
 
   state = {
@@ -263,21 +271,16 @@ class UI extends React.PureComponent {
       // but we set user-friendly message for other browsers, e.g. Edge.
       e.returnValue = intl.formatMessage(messages.beforeUnload);
     }
-  }
+  };
 
   handleWindowFocus = () => {
     this.props.dispatch(focusApp());
     this.props.dispatch(submitMarkers({ immediate: true }));
-  }
+  };
 
   handleWindowBlur = () => {
     this.props.dispatch(unfocusApp());
-  }
-
-  handleLayoutChange = () => {
-    // The cached heights are no longer accurate, invalidate
-    this.props.dispatch(clearHeight());
-  }
+  };
 
   handleDragEnter = (e) => {
     e.preventDefault();
@@ -290,10 +293,10 @@ class UI extends React.PureComponent {
       this.dragTargets.push(e.target);
     }
 
-    if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files') && this.props.canUploadMore) {
+    if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files') && this.props.canUploadMore && this.context.identity.signedIn) {
       this.setState({ draggingOver: true });
     }
-  }
+  };
 
   handleDragOver = (e) => {
     if (this.dataTransferIsText(e.dataTransfer)) return false;
@@ -308,7 +311,7 @@ class UI extends React.PureComponent {
     }
 
     return false;
-  }
+  };
 
   handleDrop = (e) => {
     if (this.dataTransferIsText(e.dataTransfer)) return;
@@ -318,10 +321,10 @@ class UI extends React.PureComponent {
     this.setState({ draggingOver: false });
     this.dragTargets = [];
 
-    if (e.dataTransfer && e.dataTransfer.files.length >= 1 && this.props.canUploadMore) {
+    if (e.dataTransfer && e.dataTransfer.files.length >= 1 && this.props.canUploadMore && this.context.identity.signedIn) {
       this.props.dispatch(uploadCompose(e.dataTransfer.files));
     }
-  }
+  };
 
   handleDragLeave = (e) => {
     e.preventDefault();
@@ -334,15 +337,15 @@ class UI extends React.PureComponent {
     }
 
     this.setState({ draggingOver: false });
-  }
+  };
 
   dataTransferIsText = (dataTransfer) => {
     return (dataTransfer && Array.from(dataTransfer.types).filter((type) => type === 'text/plain').length === 1);
-  }
+  };
 
   closeUploadModal = () => {
     this.setState({ draggingOver: false });
-  }
+  };
 
   handleServiceWorkerPostMessage = ({ data }) => {
     if (data.type === 'navigate') {
@@ -350,12 +353,32 @@ class UI extends React.PureComponent {
     } else {
       console.warn('Unknown message type:', data.type);
     }
-  }
+  };
 
-  componentWillMount () {
+  handleLayoutChange = debounce(() => {
+    this.props.dispatch(clearHeight()); // The cached heights are no longer accurate, invalidate
+  }, 500, {
+    trailing: true,
+  });
+
+  handleResize = () => {
+    const layout = layoutFromWindow();
+
+    if (layout !== this.props.layout) {
+      this.handleLayoutChange.cancel();
+      this.props.dispatch(changeLayout(layout));
+    } else {
+      this.handleLayoutChange();
+    }
+  };
+
+  componentDidMount () {
+    const { signedIn } = this.context.identity;
+
     window.addEventListener('focus', this.handleWindowFocus, false);
     window.addEventListener('blur', this.handleWindowBlur, false);
     window.addEventListener('beforeunload', this.handleBeforeUnload, false);
+    window.addEventListener('resize', this.handleResize, { passive: true });
 
     document.addEventListener('dragenter', this.handleDragEnter, false);
     document.addEventListener('dragover', this.handleDragOver, false);
@@ -367,14 +390,20 @@ class UI extends React.PureComponent {
       navigator.serviceWorker.addEventListener('message', this.handleServiceWorkerPostMessage);
     }
 
-    this.props.dispatch(fetchMarkers());
-    this.props.dispatch(expandHomeTimeline());
-    this.props.dispatch(expandNotifications());
+    // On first launch, redirect to the follow recommendations page
+    if (signedIn && this.props.firstLaunch) {
+      this.context.router.history.replace('/start');
+      this.props.dispatch(closeOnboarding());
+    }
 
-    setTimeout(() => this.props.dispatch(fetchFilters()), 500);
-  }
+    if (signedIn) {
+      this.props.dispatch(fetchMarkers());
+      this.props.dispatch(expandHomeTimeline());
+      this.props.dispatch(expandNotifications());
 
-  componentDidMount () {
+      setTimeout(() => this.props.dispatch(fetchServer()), 3000);
+    }
+
     this.hotkeys.__mousetrap__.stopCallback = (e, element) => {
       return ['TEXTAREA', 'SELECT', 'INPUT'].includes(element.tagName);
     };
@@ -384,6 +413,7 @@ class UI extends React.PureComponent {
     window.removeEventListener('focus', this.handleWindowFocus);
     window.removeEventListener('blur', this.handleWindowBlur);
     window.removeEventListener('beforeunload', this.handleBeforeUnload);
+    window.removeEventListener('resize', this.handleResize);
 
     document.removeEventListener('dragenter', this.handleDragEnter);
     document.removeEventListener('dragover', this.handleDragOver);
@@ -394,7 +424,7 @@ class UI extends React.PureComponent {
 
   setRef = c => {
     this.node = c;
-  }
+  };
 
   handleHotkeyNew = e => {
     e.preventDefault();
@@ -404,7 +434,7 @@ class UI extends React.PureComponent {
     if (element) {
       element.focus();
     }
-  }
+  };
 
   handleHotkeySearch = e => {
     e.preventDefault();
@@ -414,17 +444,17 @@ class UI extends React.PureComponent {
     if (element) {
       element.focus();
     }
-  }
+  };
 
   handleHotkeyForceNew = e => {
     this.handleHotkeyNew(e);
     this.props.dispatch(resetCompose());
-  }
+  };
 
   handleHotkeyToggleComposeSpoilers = e => {
     e.preventDefault();
     this.props.dispatch(changeComposeSpoilerness());
-  }
+  };
 
   handleHotkeyFocusColumn = e => {
     const index  = (e.key * 1) + 1; // First child is drawer, skip that
@@ -442,7 +472,7 @@ class UI extends React.PureComponent {
         status.focus();
       }
     }
-  }
+  };
 
   handleHotkeyBack = () => {
     if (window.history && window.history.length === 1) {
@@ -450,11 +480,11 @@ class UI extends React.PureComponent {
     } else {
       this.context.router.history.goBack();
     }
-  }
+  };
 
   setHotkeysRef = c => {
     this.hotkeys = c;
-  }
+  };
 
   handleHotkeyToggleHelp = () => {
     if (this.props.location.pathname === '/keyboard-shortcuts') {
@@ -462,59 +492,59 @@ class UI extends React.PureComponent {
     } else {
       this.context.router.history.push('/keyboard-shortcuts');
     }
-  }
+  };
 
   handleHotkeyGoToHome = () => {
-    this.context.router.history.push('/timelines/home');
-  }
+    this.context.router.history.push('/home');
+  };
 
   handleHotkeyGoToNotifications = () => {
     this.context.router.history.push('/notifications');
-  }
+  };
 
   handleHotkeyGoToLocal = () => {
-    this.context.router.history.push('/timelines/public/local');
-  }
+    this.context.router.history.push('/public/local');
+  };
 
   handleHotkeyGoToFederated = () => {
-    this.context.router.history.push('/timelines/public');
-  }
+    this.context.router.history.push('/public');
+  };
 
   handleHotkeyGoToDirect = () => {
-    this.context.router.history.push('/timelines/direct');
-  }
+    this.context.router.history.push('/conversations');
+  };
 
   handleHotkeyGoToStart = () => {
     this.context.router.history.push('/getting-started');
-  }
+  };
 
   handleHotkeyGoToFavourites = () => {
     this.context.router.history.push('/favourites');
-  }
+  };
 
   handleHotkeyGoToPinned = () => {
     this.context.router.history.push('/pinned');
-  }
+  };
 
   handleHotkeyGoToProfile = () => {
-    this.context.router.history.push(`/accounts/${me}`);
-  }
+    this.context.router.history.push(`/@${this.props.username}`);
+  };
 
   handleHotkeyGoToBlocked = () => {
     this.context.router.history.push('/blocks');
-  }
+  };
 
   handleHotkeyGoToMuted = () => {
     this.context.router.history.push('/mutes');
-  }
+  };
 
   handleHotkeyGoToRequests = () => {
     this.context.router.history.push('/follow_requests');
-  }
+  };
 
   render () {
     const { draggingOver } = this.state;
-    const { children, isComposing, location, dropdownMenuIsOpen } = this.props;
+    const { children, isComposing, location, dropdownMenuIsOpen, layout } = this.props;
 
     const handlers = {
       help: this.handleHotkeyToggleHelp,
@@ -541,17 +571,19 @@ class UI extends React.PureComponent {
     return (
       <HotKeys keyMap={keyMap} handlers={handlers} ref={this.setHotkeysRef} attach={window} focused>
         <div className={classNames('ui', { 'is-composing': isComposing })} ref={this.setRef} style={{ pointerEvents: dropdownMenuIsOpen ? 'none' : null }}>
-          <SwitchingColumnsArea location={location} onLayoutChange={this.handleLayoutChange}>
+          <Header />
+
+          <SwitchingColumnsArea location={location} mobile={layout === 'mobile' || layout === 'single-column'}>
             {children}
           </SwitchingColumnsArea>
 
-          <PictureInPicture />
+          {layout !== 'mobile' && <PictureInPicture />}
           <NotificationsContainer />
           <LoadingBarContainer className='loading-bar' />
           <ModalContainer />
           <UploadArea active={draggingOver} onClose={this.closeUploadModal} />
-          <Moon />
-          <DocumentTitle />
+          {/* <Moon />
+          <DocumentTitle /> */}
         </div>
       </HotKeys>
     );

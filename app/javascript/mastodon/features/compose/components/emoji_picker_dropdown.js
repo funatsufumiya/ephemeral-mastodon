@@ -1,8 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { defineMessages, injectIntl } from 'react-intl';
+import { defineMessages, injectIntl, FormattedMessage } from 'react-intl';
 import { EmojiPicker as EmojiPickerAsync } from '../../ui/util/async-components';
-import Overlay from 'react-overlays/lib/Overlay';
+import Overlay from 'react-overlays/Overlay';
 import classNames from 'classnames';
 import ImmutablePropTypes from 'react-immutable-proptypes';
 import { supportsPassiveEvents } from 'detect-passive-events';
@@ -12,7 +12,6 @@ import { assetHost } from 'mastodon/utils/config';
 const messages = defineMessages({
   emoji: { id: 'emoji_button.label', defaultMessage: 'Insert emoji' },
   emoji_search: { id: 'emoji_button.search', defaultMessage: 'Search...' },
-  emoji_not_found: { id: 'emoji_button.not_found', defaultMessage: 'No emojos!! (╯°□°）╯︵ ┻━┻' },
   custom: { id: 'emoji_button.custom', defaultMessage: 'Custom' },
   recent: { id: 'emoji_button.recent', defaultMessage: 'Frequently used' },
   search_results: { id: 'emoji_button.search_results', defaultMessage: 'Search results' },
@@ -28,8 +27,25 @@ const messages = defineMessages({
 
 let EmojiPicker, Emoji; // load asynchronously
 
-const backgroundImageFn = () => `${assetHost}/emoji/sheet_10.png`;
 const listenerOptions = supportsPassiveEvents ? { passive: true } : false;
+
+const backgroundImageFn = () => `${assetHost}/emoji/sheet_13.png`;
+
+const notFoundFn = () => (
+  <div className='emoji-mart-no-results'>
+    <Emoji
+      emoji='sleuth_or_spy'
+      set='twitter'
+      size={32}
+      sheetSize={32}
+      backgroundImageFn={backgroundImageFn}
+    />
+
+    <div className='emoji-mart-no-results-label'>
+      <FormattedMessage id='emoji_button.not_found' defaultMessage='No matching emojis found' />
+    </div>
+  </div>
+);
 
 class ModifierPickerMenu extends React.PureComponent {
 
@@ -41,7 +57,7 @@ class ModifierPickerMenu extends React.PureComponent {
 
   handleClick = e => {
     this.props.onSelect(e.currentTarget.getAttribute('data-index') * 1);
-  }
+  };
 
   componentWillReceiveProps (nextProps) {
     if (nextProps.active) {
@@ -59,7 +75,7 @@ class ModifierPickerMenu extends React.PureComponent {
     if (this.node && !this.node.contains(e.target)) {
       this.props.onClose();
     }
-  }
+  };
 
   attachListeners () {
     document.addEventListener('click', this.handleDocumentClick, false);
@@ -73,19 +89,19 @@ class ModifierPickerMenu extends React.PureComponent {
 
   setRef = c => {
     this.node = c;
-  }
+  };
 
   render () {
     const { active } = this.props;
 
     return (
       <div className='emoji-picker-dropdown__modifiers__menu' style={{ display: active ? 'block' : 'none' }} ref={this.setRef}>
-        <button onClick={this.handleClick} data-index={1}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={1} backgroundImageFn={backgroundImageFn} /></button>
-        <button onClick={this.handleClick} data-index={2}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={2} backgroundImageFn={backgroundImageFn} /></button>
-        <button onClick={this.handleClick} data-index={3}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={3} backgroundImageFn={backgroundImageFn} /></button>
-        <button onClick={this.handleClick} data-index={4}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={4} backgroundImageFn={backgroundImageFn} /></button>
-        <button onClick={this.handleClick} data-index={5}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={5} backgroundImageFn={backgroundImageFn} /></button>
-        <button onClick={this.handleClick} data-index={6}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={6} backgroundImageFn={backgroundImageFn} /></button>
+        <button type='button' onClick={this.handleClick} data-index={1}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={1} backgroundImageFn={backgroundImageFn} /></button>
+        <button type='button' onClick={this.handleClick} data-index={2}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={2} backgroundImageFn={backgroundImageFn} /></button>
+        <button type='button' onClick={this.handleClick} data-index={3}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={3} backgroundImageFn={backgroundImageFn} /></button>
+        <button type='button' onClick={this.handleClick} data-index={4}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={4} backgroundImageFn={backgroundImageFn} /></button>
+        <button type='button' onClick={this.handleClick} data-index={5}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={5} backgroundImageFn={backgroundImageFn} /></button>
+        <button type='button' onClick={this.handleClick} data-index={6}><Emoji emoji='fist' set='twitter' size={22} sheetSize={32} skin={6} backgroundImageFn={backgroundImageFn} /></button>
       </div>
     );
   }
@@ -108,12 +124,12 @@ class ModifierPicker extends React.PureComponent {
     } else {
       this.props.onOpen();
     }
-  }
+  };
 
   handleSelect = modifier => {
     this.props.onChange(modifier);
     this.props.onClose();
-  }
+  };
 
   render () {
     const { active, modifier } = this.props;
@@ -138,9 +154,6 @@ class EmojiPickerMenu extends React.PureComponent {
     onClose: PropTypes.func.isRequired,
     onPick: PropTypes.func.isRequired,
     style: PropTypes.object,
-    placement: PropTypes.string,
-    arrowOffsetLeft: PropTypes.string,
-    arrowOffsetTop: PropTypes.string,
     intl: PropTypes.object.isRequired,
     skinTone: PropTypes.number.isRequired,
     onSkinTone: PropTypes.func.isRequired,
@@ -154,18 +167,28 @@ class EmojiPickerMenu extends React.PureComponent {
 
   state = {
     modifierOpen: false,
-    placement: null,
+    readyToFocus: false,
   };
 
   handleDocumentClick = e => {
     if (this.node && !this.node.contains(e.target)) {
       this.props.onClose();
     }
-  }
+  };
 
   componentDidMount () {
     document.addEventListener('click', this.handleDocumentClick, false);
     document.addEventListener('touchend', this.handleDocumentClick, listenerOptions);
+
+    // Because of https://github.com/react-bootstrap/react-bootstrap/issues/2614 we need
+    // to wait for a frame before focusing
+    requestAnimationFrame(() => {
+      this.setState({ readyToFocus: true });
+      if (this.node) {
+        const element = this.node.querySelector('input[type="search"]');
+        if (element) element.focus();
+      }
+    });
   }
 
   componentWillUnmount () {
@@ -175,14 +198,13 @@ class EmojiPickerMenu extends React.PureComponent {
 
   setRef = c => {
     this.node = c;
-  }
+  };
 
   getI18n = () => {
     const { intl } = this.props;
 
     return {
       search: intl.formatMessage(messages.emoji_search),
-      notfound: intl.formatMessage(messages.emoji_not_found),
       categories: {
         search: intl.formatMessage(messages.search_results),
         recent: intl.formatMessage(messages.recent),
@@ -197,7 +219,7 @@ class EmojiPickerMenu extends React.PureComponent {
         custom: intl.formatMessage(messages.custom),
       },
     };
-  }
+  };
 
   handleClick = (emoji, event) => {
     if (!emoji.native) {
@@ -207,19 +229,19 @@ class EmojiPickerMenu extends React.PureComponent {
       this.props.onClose();
     }
     this.props.onPick(emoji);
-  }
+  };
 
   handleModifierOpen = () => {
     this.setState({ modifierOpen: true });
-  }
+  };
 
   handleModifierClose = () => {
     this.setState({ modifierOpen: false });
-  }
+  };
 
   handleModifierChange = modifier => {
     this.props.onSkinTone(modifier);
-  }
+  };
 
   render () {
     const { loading, style, intl, custom_emojis, skinTone, frequentlyUsedEmojis } = this.props;
@@ -263,8 +285,10 @@ class EmojiPickerMenu extends React.PureComponent {
           recent={frequentlyUsedEmojis}
           skin={skinTone}
           showPreview={false}
+          showSkinTones={false}
           backgroundImageFn={backgroundImageFn}
-          autoFocus
+          notFound={notFoundFn}
+          autoFocus={this.state.readyToFocus}
           emojiTooltip
         />
 
@@ -301,9 +325,9 @@ class EmojiPickerDropdown extends React.PureComponent {
 
   setRef = (c) => {
     this.dropdown = c;
-  }
+  };
 
-  onShowDropdown = ({ target }) => {
+  onShowDropdown = () => {
     this.setState({ active: true });
 
     if (!EmojiPicker) {
@@ -318,14 +342,11 @@ class EmojiPickerDropdown extends React.PureComponent {
         this.setState({ loading: false, active: false });
       });
     }
-
-    const { top } = target.getBoundingClientRect();
-    this.setState({ placement: top * 2 < innerHeight ? 'bottom' : 'top' });
-  }
+  };
 
   onHideDropdown = () => {
     this.setState({ active: false });
-  }
+  };
 
   onToggle = (e) => {
     if (!this.state.loading && (!e.key || e.key === 'Enter')) {
@@ -335,26 +356,26 @@ class EmojiPickerDropdown extends React.PureComponent {
         this.onShowDropdown(e);
       }
     }
-  }
+  };
 
   handleKeyDown = e => {
     if (e.key === 'Escape') {
       this.onHideDropdown();
     }
-  }
+  };
 
   setTargetRef = c => {
     this.target = c;
-  }
+  };
 
   findTarget = () => {
     return this.target;
-  }
+  };
 
   render () {
     const { intl, onPickEmoji, onSkinTone, skinTone, frequentlyUsedEmojis, button } = this.props;
     const title = intl.formatMessage(messages.emoji);
-    const { active, loading, placement } = this.state;
+    const { active, loading } = this.state;
 
     return (
       <div className='emoji-picker-dropdown' onKeyDown={this.handleKeyDown}>
@@ -366,16 +387,22 @@ class EmojiPickerDropdown extends React.PureComponent {
           />}
         </div>
 
-        <Overlay show={active} placement={placement} target={this.findTarget}>
-          <EmojiPickerMenu
-            custom_emojis={this.props.custom_emojis}
-            loading={loading}
-            onClose={this.onHideDropdown}
-            onPick={onPickEmoji}
-            onSkinTone={onSkinTone}
-            skinTone={skinTone}
-            frequentlyUsedEmojis={frequentlyUsedEmojis}
-          />
+        <Overlay show={active} placement={'bottom'} target={this.findTarget} popperConfig={{ strategy: 'fixed' }}>
+          {({ props, placement })=> (
+            <div {...props} style={{ ...props.style, width: 299 }}>
+              <div className={`dropdown-animation ${placement}`}>
+                <EmojiPickerMenu
+                  custom_emojis={this.props.custom_emojis}
+                  loading={loading}
+                  onClose={this.onHideDropdown}
+                  onPick={onPickEmoji}
+                  onSkinTone={onSkinTone}
+                  skinTone={skinTone}
+                  frequentlyUsedEmojis={frequentlyUsedEmojis}
+                />
+              </div>
+            </div>
+          )}
         </Overlay>
       </div>
     );

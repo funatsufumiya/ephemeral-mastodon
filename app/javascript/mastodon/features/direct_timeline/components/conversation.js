@@ -7,7 +7,7 @@ import AttachmentList from 'mastodon/components/attachment_list';
 import { defineMessages, injectIntl, FormattedMessage } from 'react-intl';
 import DropdownMenuContainer from 'mastodon/containers/dropdown_menu_container';
 import AvatarComposite from 'mastodon/components/avatar_composite';
-import Permalink from 'mastodon/components/permalink';
+import { Link } from 'react-router-dom';
 import IconButton from 'mastodon/components/icon_button';
 import RelativeTimestamp from 'mastodon/components/relative_timestamp';
 import { HotKeys } from 'react-hotkeys';
@@ -44,42 +44,31 @@ class Conversation extends ImmutablePureComponent {
     intl: PropTypes.object.isRequired,
   };
 
-  _updateEmojis () {
-    const node = this.namesNode;
-
-    if (!node || autoPlayGif) {
+  handleMouseEnter = ({ currentTarget }) => {
+    if (autoPlayGif) {
       return;
     }
 
-    const emojis = node.querySelectorAll('.custom-emoji');
+    const emojis = currentTarget.querySelectorAll('.custom-emoji');
 
     for (var i = 0; i < emojis.length; i++) {
       let emoji = emojis[i];
-      if (emoji.classList.contains('status-emoji')) {
-        continue;
-      }
-      emoji.classList.add('status-emoji');
-
-      emoji.addEventListener('mouseenter', this.handleEmojiMouseEnter, false);
-      emoji.addEventListener('mouseleave', this.handleEmojiMouseLeave, false);
+      emoji.src = emoji.getAttribute('data-original');
     }
-  }
+  };
 
-  componentDidMount () {
-    this._updateEmojis();
-  }
+  handleMouseLeave = ({ currentTarget }) => {
+    if (autoPlayGif) {
+      return;
+    }
 
-  componentDidUpdate () {
-    this._updateEmojis();
-  }
+    const emojis = currentTarget.querySelectorAll('.custom-emoji');
 
-  handleEmojiMouseEnter = ({ target }) => {
-    target.src = target.getAttribute('data-original');
-  }
-
-  handleEmojiMouseLeave = ({ target }) => {
-    target.src = target.getAttribute('data-static');
-  }
+    for (var i = 0; i < emojis.length; i++) {
+      let emoji = emojis[i];
+      emoji.src = emoji.getAttribute('data-static');
+    }
+  };
 
   handleClick = () => {
     if (!this.context.router) {
@@ -92,40 +81,36 @@ class Conversation extends ImmutablePureComponent {
       markRead();
     }
 
-    this.context.router.history.push(`/statuses/${lastStatus.get('id')}`);
-  }
+    this.context.router.history.push(`/@${lastStatus.getIn(['account', 'acct'])}/${lastStatus.get('id')}`);
+  };
 
   handleMarkAsRead = () => {
     this.props.markRead();
-  }
+  };
 
   handleReply = () => {
     this.props.reply(this.props.lastStatus, this.context.router.history);
-  }
+  };
 
   handleDelete = () => {
     this.props.delete();
-  }
+  };
 
   handleHotkeyMoveUp = () => {
     this.props.onMoveUp(this.props.conversationId);
-  }
+  };
 
   handleHotkeyMoveDown = () => {
     this.props.onMoveDown(this.props.conversationId);
-  }
+  };
 
   handleConversationMute = () => {
     this.props.onMute(this.props.lastStatus);
-  }
+  };
 
   handleShowMore = () => {
     this.props.onToggleHidden(this.props.lastStatus);
-  }
-
-  setNamesRef = (c) => {
-    this.namesNode = c;
-  }
+  };
 
   render () {
     const { accounts, lastStatus, unread, scrollKey, intl } = this.props;
@@ -148,7 +133,7 @@ class Conversation extends ImmutablePureComponent {
 
     menu.push({ text: intl.formatMessage(messages.delete), action: this.handleDelete });
 
-    const names = accounts.map(a => <Permalink to={`/accounts/${a.get('id')}`} href={a.get('url')} key={a.get('id')} title={a.get('acct')}><bdi><strong className='display-name__html' dangerouslySetInnerHTML={{ __html: a.get('display_name_html') }} /></bdi></Permalink>).reduce((prev, cur) => [prev, ', ', cur]);
+    const names = accounts.map(a => <Link to={`/@${a.get('acct')}`} key={a.get('id')} title={a.get('acct')}><bdi><strong className='display-name__html' dangerouslySetInnerHTML={{ __html: a.get('display_name_html') }} /></bdi></Link>).reduce((prev, cur) => [prev, ', ', cur]);
 
     const handlers = {
       reply: this.handleReply,
@@ -171,7 +156,7 @@ class Conversation extends ImmutablePureComponent {
                 {unread && <span className='conversation__unread' />} <RelativeTimestamp timestamp={lastStatus.get('created_at')} />
               </div>
 
-              <div className='conversation__content__names' ref={this.setNamesRef}>
+              <div className='conversation__content__names' onMouseEnter={this.handleMouseEnter} onMouseLeave={this.handleMouseLeave}>
                 <FormattedMessage id='conversation.with' defaultMessage='With {names}' values={{ names: <span>{names}</span> }} />
               </div>
             </div>
